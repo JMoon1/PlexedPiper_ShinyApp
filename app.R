@@ -1,16 +1,11 @@
 library(shiny)
 library(DT)
-# source("PNNL_DMS_utils.R")
 library(PlexedPiper)
 library(zeallot)
 library(odbc)
 library(shinycssloaders)
 
-source("PNNL_DMS_utils.R")
 
-# umount_cmd <- sprintf("umount %s", "~/temp_msms_results")
-# system(umount_cmd)
-# unlink("~/temp_msms_results", recursive = T)
 
 
 # 3 components
