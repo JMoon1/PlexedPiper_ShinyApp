@@ -219,7 +219,7 @@ server <- function(input, output, session) {
       paste0("crosstab", ".txt")
     },
     content = function(file) {
-      write.table(crosstab, file, sep = "\t", col.names = NA, quote = F, 
+      write.table(signif(crosstab, 3), file, sep = "\t", col.names = NA, quote = F, 
                   na = "")
     }
   )
