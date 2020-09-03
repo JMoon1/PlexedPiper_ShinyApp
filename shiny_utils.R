@@ -6,9 +6,29 @@ filter_masic_data <- function (x, interference_score_threshold = 0.9, s2n_thresh
                                                                           0, s2n)) %>% filter(s2n >= s2n_threshold) %>% dplyr::select(-s2n) %>% 
     mutate(channel = sub("_SignalToNoise", "", channel))
   x <- x %>% dplyr::select(Dataset, ScanNumber, starts_with("Ion"), 
-                    -contains("SignalToNoise")) %>% gather(channel, intensity, 
-                                                           -c(Dataset, ScanNumber)) %>% inner_join(selected, by = c("Dataset", 
-                                                                                                                    "ScanNumber", "channel")) %>% spread(channel, intensity)
+                           -contains("SignalToNoise")) %>% gather(channel, intensity, 
+                                                                  -c(Dataset, ScanNumber)) %>% inner_join(selected, by = c("Dataset", 
+                                                                                                                           "ScanNumber", "channel")) %>% spread(channel, intensity)
+}
+
+get_driver <- function(){
+  if(.Platform$OS.type == "unix"){
+    return("FreeTDS")
+  }else if(.Platform$OS.type == "windows"){
+    return("SQL Server")
+  }else{
+    stop("Unknown OS type.")
+  }
+}
+
+get_auth <- function(){
+  if(.Platform$OS.type == "unix"){
+    return("PORT=1433;UID=dmsreader;PWD=dms4fun;")
+  }else if(.Platform$OS.type == "windows"){
+    return("")
+  }else{
+    stop("Unknown OS type.")
+  }
 }
 
 ## util tools ==================================================================
@@ -35,12 +55,37 @@ get_results_for_multiple_jobs.dt.shiny <- function(jobRecords, progress){
     stop("Contains results of more then one tool.")
   }
   results = llply(jobRecords[["Folder"]],
-                  PlexedPiper:::get_results_for_single_job.dt,
+                  get_results_for_single_job.dt.http,
                   fileNamePttrn=tool2suffix[[toolName]],
                   .progress = progress)
   results.dt <- rbindlist(results)
   return( as.data.frame(results.dt) ) # in the future I may keep it as data.table
 }
+
+get_results_for_single_job.dt.http <- function(pathToFile, fileNamePttrn){
+  
+  pathToFile <- as.character(pathToFile)
+  
+  remote_folder <- gsub("\\\\","/",pathToFile)
+  dataset <- sub("^//.*/.*/.*/(.*)/.*", "\\1", remote_folder)
+  url_string <- paste0("http:", remote_folder)
+  
+  pathToFile <- paste0(url_string, "/", dataset, fileNamePttrn)
+  
+  if(length(pathToFile) == 0){
+    stop("can't find the results file")
+  }
+  if(length(pathToFile) > 1){
+    stop("ambiguous results files")
+  }
+  
+  results <- read_tsv(pathToFile, col_types=readr::cols(), progress=FALSE)
+  
+  out <- data.table(Dataset=dataset, results)
+  return(out)
+}
+
+
 
 read_masic_data_from_DMS_shiny <- function (data_pkg, interference_score = FALSE, progress) 
 {
@@ -55,7 +100,7 @@ read_masic_data_from_DMS_shiny <- function (data_pkg, interference_score = FALSE
                            ]
   masicData <- get_results_for_multiple_jobs.dt.shiny(jobRecords, progress)
   if (interference_score) {
-    results = llply(jobRecords[["Folder"]], get_results_for_single_job.dt, 
+    results = llply(jobRecords[["Folder"]], get_results_for_single_job.dt.http, 
                     fileNamePttrn = "_SICstats.txt", .progress = progress)
     results.dt <- rbindlist(results)
     masicStats <- as.data.frame(results.dt)
@@ -98,3 +143,38 @@ read_msms_data_from_DMS_shiny <- function(DataPkgNumber, progress)
     return(msnid)
   }
 }
+
+path_to_FASTA_used_by_DMS.http <- function(data_package_number){
+  
+  # make sure it was the same fasta used for all msgf jobs
+  # at this point this works only with one data package at a time
+  jobRecords <- get_job_records_by_dataset_package(data_package_number)
+  jobRecords <- jobRecords[grepl("MSGFPlus", jobRecords$Tool),]
+  if(length(unique(jobRecords$`Organism DB`)) != 1){
+    stop("There should be exactly one FASTA file per data package!")
+  }
+  
+  strSQL <- sprintf("Select [Organism DB],
+                             [Organism DB Storage Path]
+                     From V_Analysis_Job_Detail_Report_2
+                     Where JobNum = %s", jobRecords$Job[1])
+  
+  con_str <- sprintf("DRIVER={%s};SERVER=gigasax;DATABASE=dms5;%s",
+                     get_driver(),
+                     get_auth())
+  
+  con <- dbConnect(odbc(), .connection_string=con_str)
+  qry <- dbSendQuery(con, strSQL)
+  res <- dbFetch(qry)
+  dbClearResult(qry)
+  dbDisconnect(con)
+  
+  remote_folder <- gsub("\\\\","/", res['Organism DB Storage Path'])
+  dataset <- sub("^//.*/.*/.*/(.*)/.*", "\\1", remote_folder)
+  url_string <- paste0("http:", remote_folder)
+
+  path_to_FASTA <- file.path(url_string, res['Organism DB'])
+  
+  return(path_to_FASTA)
+}
+

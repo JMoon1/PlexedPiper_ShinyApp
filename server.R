@@ -119,13 +119,14 @@ server <- function(input, output, session) {
         
         msnid <<- remap_accessions_refseq_to_gene(msnid,
                                                   organism_name=org_name)
-        path_to_FASTA <- path_to_FASTA_used_by_DMS(input$DataPkgNumber)
+        path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
         path_to_FASTA <- remap_accessions_refseq_to_gene_fasta(
           path_to_FASTA,
           organism_name = org_name)
+        ## TODO add option for uniprot_to_gene
       }
       else {
-        path_to_FASTA <- path_to_FASTA_used_by_DMS(input$DataPkgNumber)
+        path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
       }
       # incProgress(amount = 0.5, message = "Filtering accession-level FDR")
       progress_bar$set(value = 0.5, "Filtering accession-level FDR")
