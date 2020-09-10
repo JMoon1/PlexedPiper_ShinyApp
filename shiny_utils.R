@@ -1,3 +1,4 @@
+
 filter_masic_data <- function (x, interference_score_threshold = 0.9, s2n_threshold = 4) 
 {
   x <- x %>% filter(InterferenceScore >= interference_score_threshold)
@@ -172,9 +173,118 @@ path_to_FASTA_used_by_DMS.http <- function(data_package_number){
   remote_folder <- gsub("\\\\","/", res['Organism DB Storage Path'])
   dataset <- sub("^//.*/.*/.*/(.*)/.*", "\\1", remote_folder)
   url_string <- paste0("http:", remote_folder)
-
+  
   path_to_FASTA <- file.path(url_string, res['Organism DB'])
   
   return(path_to_FASTA)
 }
 
+
+get_study_design_by_dataset_package.http <- function(dataPkgNumber) {
+  
+  con_str <- sprintf("DRIVER={%s};SERVER=gigasax;DATABASE=DMS_Data_Package;%s",
+                     get_driver(),
+                     get_auth())
+  con <- dbConnect(odbc(), .connection_string=con_str)
+  
+  ## fetch table with path to DataPackage
+  strSQL <- sprintf("
+                    SELECT *
+                    FROM V_Data_Package_Detail_Report
+                    WHERE ID = %s",
+                    dataPkgNumber)
+  qry <- dbSendQuery(con, strSQL)
+  dataPkgReport <- dbFetch(qry)
+  dbClearResult(qry)
+
+  remote_folder <- gsub("\\\\","/", dataPkgReport$`Share Path`)
+  remote_folder <- paste0("http:", remote_folder)
+
+  ## fetch samples.txt
+  samples <- readr::read_tsv(paste0(remote_folder, "/samples.txt"), 
+                             col_types=readr::cols(), progress=FALSE)
+  if (!setequal(colnames(samples), c("PlexID",
+                                     "QuantBlock",
+                                     "ReporterAlias",
+                                     "ReporterName",
+                                     "MeasurementName"))) {
+    stop("There are incorrect column names or missing columns in the 'samples'
+         study design table.")
+  }
+  
+  ## fetch fractions.txt
+  fractions <- readr::read_tsv(paste0(remote_folder, "/fractions.txt"), 
+                             col_types=readr::cols(), progress=FALSE)
+  if (!setequal(colnames(fractions), c("PlexID",
+                                       "Dataset"))) {
+    stop("There are incorrect column names or missing columns in the 'fractions'
+         study design table.")
+  }
+  
+  ## fetch references.txt
+  references <- readr::read_tsv(paste0(remote_folder, "/references.txt"), 
+                             col_types=readr::cols(), progress=FALSE)
+  if (!setequal(colnames(references), c("PlexID",
+                                        "QuantBlock",
+                                        "Reference"))) {
+    stop("There are incorrect column names or missing columns in the 'references'
+         study design table.")
+  }
+
+  study_des <- list(samples = samples,
+                    fractions = fractions,
+                    references = references)
+  return(study_des)
+}
+
+remap_accessions_refseq_to_gene_fasta_shiny <- function(path_to_FASTA,
+                                                        organism_name,
+                                                        conversion_table){
+  
+  is_compressed <- FALSE
+  if(grepl("[.]gz$", path_to_FASTA)){
+    is_compressed <- TRUE
+  }else if(grepl("[.](bz2|xz|zip)$", path_to_FASTA)){
+    stop("The only supported compression is gzip!")
+  }
+  
+  mySequences <- readAAStringSet(path_to_FASTA)
+  names(mySequences) <- sub("^(.P_\\d+)(\\.\\d+)?\\s.*","\\1",names(mySequences))
+  prot_lengths <- data.frame(REFSEQ = names(mySequences),
+                             Length = width(mySequences),
+                             stringsAsFactors = FALSE)
+  
+  if(missing(conversion_table)){
+    ah <- AnnotationHub()
+    orgs <- subset(ah, ah$rdataclass == "OrgDb")
+    db <- query(orgs, organism_name)
+    db <- db[[1]]
+    conversion_table <- AnnotationDbi::select(db,
+                                              keys=names(mySequences),
+                                              columns="SYMBOL",
+                                              keytype="REFSEQ")
+    conversion_table <- conversion_table[,c("REFSEQ","SYMBOL")]
+  }
+  # I don't know what column names are, but I require that refseq is first,
+  # gene second
+  colnames(conversion_table) <- c("REFSEQ","SYMBOL")
+  # resolving mapping ambiguity by selecting longest RefSeq per gene
+  conversion_table <- conversion_table %>%
+    filter(!is.na(SYMBOL)) %>%
+    inner_join(prot_lengths, by = "REFSEQ") %>%
+    group_by(SYMBOL) %>%
+    dplyr::slice(which.max(Length))
+  conversion_vec <- conversion_table %>% pull(2)
+  names(conversion_vec) <- conversion_table %>% pull(1)
+  mySequences <- mySequences[names(conversion_vec)]
+  names(mySequences) <- conversion_vec[names(mySequences)]
+  
+  file_no_ext <- file_path_sans_ext(path_to_FASTA, compression=TRUE)
+  ext <- sub(file_no_ext, "", path_to_FASTA, fixed=TRUE)
+  
+  path_to_FASTA_gene <- paste0(file_no_ext, '_gene', ext)
+  
+  path_to_FASTA_gene <- sub(".*/(.*)$", "\\1", path_to_FASTA_gene)
+  writeXStringSet(mySequences, path_to_FASTA_gene, compress = is_compressed)
+  return(path_to_FASTA_gene)
+}

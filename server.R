@@ -27,7 +27,7 @@ server <- function(input, output, session) {
     jr <- PlexedPiper:::get_job_records_by_dataset_package(input$DataPkgNumber)
     max_steps <- length(unique(jr$Dataset))
     
-    progress_bar <- shiny::Progress$new(session, min=0, max=max_steps)
+    progress_bar <- shiny::Progress$new(session, min=0, max=max_steps*2)
     on.exit(progress_bar$close())
     
     # use the main progress outside of llply
@@ -99,54 +99,50 @@ server <- function(input, output, session) {
     ## open new progress bar
     
     # withProgress(message = 'Processing MS-GF+ data', value = 0, {
-      
-      msnid <<- correct_peak_selection(msnid)
-      
-      progress_bar$close()
-      
-      ## start new progress bar
-      # progress_bar <- shiny::Progress$new(session, min=0, max=1)
-      # on.exit(progress_bar$close())
-      # incProgress(amount = 0.25, message = "Filtering unique peptide ID FDR")
-      progress_bar <- shiny::Progress$new(session, min=0, max=1)
-      on.exit(progress_bar$close())
-      
-      progress_bar$set(value = 0.25, "Filtering unique peptide ID FDR")
-      msnid <<- filter_msgf_data_peptide_level(msnid, input$pep_fdr)
-      
-      if (input$remap_genes == T) {
-        progress_bar$set(value = 0.4, "Remapping to genes")
-        
-        msnid <<- remap_accessions_refseq_to_gene(msnid,
-                                                  organism_name=org_name)
-        path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
-        path_to_FASTA <- remap_accessions_refseq_to_gene_fasta(
-          path_to_FASTA,
-          organism_name = org_name)
-        ## TODO add option for uniprot_to_gene
-      }
-      else {
-        path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
-      }
-      # incProgress(amount = 0.5, message = "Filtering accession-level FDR")
-      progress_bar$set(value = 0.5, "Filtering accession-level FDR")
-      msnid <<- compute_num_peptides_per_1000aa(msnid, path_to_FASTA)
-      msnid <<- filter_msgf_data_protein_level(msnid, input$prot_fdr)
-      
-      # incProgress(amount = 0.75, message = "Performing parsimonious inference")
-      progress_bar$set(value = 0.75, "Performing parsimonious inference")
-      
-      if (input$protein_inference == T) {
-        msnid <<- infer_parsimonious_accessions(msnid, unique_only=input$unique_only)
-      }
-      
-      msnid <<- apply_filter(msnid, "!isDecoy")
-      ## TODO remove contaminants?
-      # incProgress(amount = 100, message = "MS/MS data complete")
-      progress_bar$set(value = 1, "MS/MS data processing complete")
-    # })
     
+    msnid <<- correct_peak_selection(msnid)
     
+    progress_bar$close()
+    
+    ## start new progress bar
+    # progress_bar <- shiny::Progress$new(session, min=0, max=1)
+    # on.exit(progress_bar$close())
+    # incProgress(amount = 0.25, message = "Filtering unique peptide ID FDR")
+    progress_bar <- shiny::Progress$new(session, min=0, max=1)
+    on.exit(progress_bar$close())
+    
+    progress_bar$set(value = 0.25, "Filtering unique peptide ID FDR")
+    msnid <<- filter_msgf_data_peptide_level(msnid, input$pep_fdr)
+    
+    if (input$remap_genes == T) {
+      progress_bar$set(value = 0.4, "Remapping to genes")
+      
+      msnid <<- remap_accessions_refseq_to_gene(msnid,
+                                                organism_name=org_name)
+      path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
+      path_to_FASTA <- remap_accessions_refseq_to_gene_fasta_shiny(
+        path_to_FASTA,
+        organism_name = org_name)
+      ## TODO add option for uniprot_to_gene
+    }
+    else {
+      path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
+    }
+    progress_bar$set(value = 0.5, "Filtering accession-level FDR")
+    msnid <<- compute_num_peptides_per_1000aa(msnid, path_to_FASTA)
+    msnid <<- filter_msgf_data_protein_level(msnid, input$prot_fdr)
+    
+    progress_bar$set(value = 0.75, "Performing parsimonious inference")
+    
+    if (input$protein_inference == T) {
+      msnid <<- infer_parsimonious_accessions(msnid, unique_only=input$unique_only)
+    }
+    
+    psms(msnid)$isContam <- grepl("Contam", psms(msnid)$accession)
+    msnid <- apply_filter(msnid, "!isContam")
+    msnid <<- apply_filter(msnid, "!isDecoy")
+    
+    progress_bar$set(value = 1, "MS/MS data processing complete")
     progress[['text2']] <<- "MS-GF+ data processed." 
     progress[['col2']] <<- "green"
     
@@ -183,7 +179,7 @@ server <- function(input, output, session) {
       fractions <- data.frame()
       references <- data.frame()
       
-      c(samples, fractions, references) %<-% PlexedPiper:::get_study_design_by_dataset_package(input$DataPkgNumber)
+      c(samples, fractions, references) %<-% get_study_design_by_dataset_package.http(input$DataPkgNumber)
       
       aggregation_level <- c("accession") # hard coded for now
       incProgress(amount = 0.25, message = "Rolling up to accession")
@@ -193,7 +189,7 @@ server <- function(input, output, session) {
       incProgress(amount = 1, message = "Crosstab created")
     })
     
-    progress[['text3']] <<- "Data quantified and ready for download" # do i really need <<- here?
+    progress[['text3']] <<- "Data quantified and ready for download"
     progress[['col3']] <<- "green"
     
   })
