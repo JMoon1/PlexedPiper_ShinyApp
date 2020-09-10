@@ -6,6 +6,7 @@ library(plyr)
 library(odbc)
 library(tidyverse)
 library(data.table)
+library(AnnotationHub)
 
 source("shiny_utils.R")
 

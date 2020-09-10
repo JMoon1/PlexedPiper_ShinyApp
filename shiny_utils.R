@@ -279,7 +279,7 @@ remap_accessions_refseq_to_gene_fasta_shiny <- function(path_to_FASTA,
   mySequences <- mySequences[names(conversion_vec)]
   names(mySequences) <- conversion_vec[names(mySequences)]
   
-  file_no_ext <- file_path_sans_ext(path_to_FASTA, compression=TRUE)
+  file_no_ext <- tools::file_path_sans_ext(path_to_FASTA, compression=TRUE)
   ext <- sub(file_no_ext, "", path_to_FASTA, fixed=TRUE)
   
   path_to_FASTA_gene <- paste0(file_no_ext, '_gene', ext)
