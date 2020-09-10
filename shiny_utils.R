@@ -248,7 +248,7 @@ remap_accessions_refseq_to_gene_fasta_shiny <- function(path_to_FASTA,
     stop("The only supported compression is gzip!")
   }
   
-  mySequences <- readAAStringSet(path_to_FASTA)
+  mySequences <- Biostrings::readAAStringSet(path_to_FASTA)
   names(mySequences) <- sub("^(.P_\\d+)(\\.\\d+)?\\s.*","\\1",names(mySequences))
   prot_lengths <- data.frame(REFSEQ = names(mySequences),
                              Length = width(mySequences),
@@ -285,6 +285,6 @@ remap_accessions_refseq_to_gene_fasta_shiny <- function(path_to_FASTA,
   path_to_FASTA_gene <- paste0(file_no_ext, '_gene', ext)
   
   path_to_FASTA_gene <- sub(".*/(.*)$", "\\1", path_to_FASTA_gene)
-  writeXStringSet(mySequences, path_to_FASTA_gene, compress = is_compressed)
+  Biostrings::writeXStringSet(mySequences, path_to_FASTA_gene, compress = is_compressed)
   return(path_to_FASTA_gene)
 }
