@@ -285,6 +285,37 @@ remap_accessions_refseq_to_gene_fasta_shiny <- function(path_to_FASTA,
   path_to_FASTA_gene <- paste0(file_no_ext, '_gene', ext)
   
   path_to_FASTA_gene <- sub(".*/(.*)$", "\\1", path_to_FASTA_gene)
-  Biostrings::writeXStringSet(mySequences, path_to_FASTA_gene, compress = is_compressed)
-  return(path_to_FASTA_gene)
+  # Biostrings::writeXStringSet(mySequences, path_to_FASTA_gene, compress = is_compressed)
+  # return(path_to_FASTA_gene)
+  return(mySequences)
 }
+
+
+compute_num_peptides_per_1000aa_shiny <- function(msnid,
+                                            fasta){
+  # fasta
+  mySequences <- fasta
+  # compute protein lengths
+  prot_lengths <-
+    data.frame(accession = sub("^(\\S+)\\s.*","\\1",names(mySequences)),
+               Length = width(mySequences),
+               stringsAsFactors = FALSE)
+  # append with lengths of reverse sequences
+  prot_lengths <- mutate(prot_lengths, accession = paste0("XXX_", accession)) %>%
+    rbind(prot_lengths, .)
+  
+  # count peptides per 1000 aa
+  pepN1000 <- psms(msnid) %>%
+    select(accession, peptide, isDecoy) %>%
+    distinct() %>%
+    group_by(accession) %>%
+    summarise(pepN = n()) %>%
+    inner_join(prot_lengths, by = "accession") %>%
+    mutate(pep_per_1000 = 1000*pepN/Length)
+  pepN1000_vec <- pepN1000$pep_per_1000
+  names(pepN1000_vec) <- pepN1000$accession
+  
+  msnid$peptides_per_1000aa <- pepN1000_vec[msnid$accession]
+  return(msnid)
+}
+
