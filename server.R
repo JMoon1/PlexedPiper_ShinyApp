@@ -6,7 +6,7 @@ library(plyr)
 library(odbc)
 library(tidyverse)
 library(data.table)
-library(AnnotationHub)
+# library(AnnotationHub)
 
 source("shiny_utils.R")
 
@@ -121,16 +121,17 @@ server <- function(input, output, session) {
       msnid <<- remap_accessions_refseq_to_gene(msnid,
                                                 organism_name=org_name)
       path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
-      path_to_FASTA <- remap_accessions_refseq_to_gene_fasta_shiny(
+      fst <- remap_accessions_refseq_to_gene_fasta_shiny(
         path_to_FASTA,
         organism_name = org_name)
       ## TODO add option for uniprot_to_gene
     }
     else {
       path_to_FASTA <- path_to_FASTA_used_by_DMS.http(input$DataPkgNumber)
+      fst <- Biostrings::readAAStringSet(path_to_FASTA)
     }
     progress_bar$set(value = 0.5, "Filtering accession-level FDR")
-    msnid <<- compute_num_peptides_per_1000aa(msnid, path_to_FASTA)
+    msnid <<- compute_num_peptides_per_1000aa_shiny(msnid, fst)
     msnid <<- filter_msgf_data_protein_level(msnid, input$prot_fdr)
     
     progress_bar$set(value = 0.75, "Performing parsimonious inference")
