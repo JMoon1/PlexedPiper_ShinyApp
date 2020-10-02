@@ -199,7 +199,20 @@ server <- function(input, output, session) {
       
       c(samples, fractions, references) %<-% get_study_design_by_dataset_package.http(input$DataPkgNumber)
       
-      aggregation_level <- input$aggregate_to # hard coded for now
+      if (input$proteome == "Global") {
+        if (input$gl_aggregate_to == "Accession")
+          aggregation_level <<- c("accession")
+        if(input$gl_aggregate_to == "Peptide")
+          aggregation_level <<- c("accession", "peptide")
+      }
+      
+      if (input$proteome == "Phospho") {
+        if (input$ph_aggregate_to == "Peptide")
+          aggregation_level <<- c("accession", "peptide")
+        if(input$ph_aggregate_to == "SiteID")
+          aggregation_level <<- c("SiteID")
+      }
+      
       incProgress(amount = 0.25, message = "Rolling up...")
       crosstab <<- PlexedPiper::create_crosstab(msnid, masic_data, aggregation_level,
                                                 fractions, samples, references)

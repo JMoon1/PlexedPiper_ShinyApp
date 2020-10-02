@@ -86,14 +86,14 @@ ui <- dashboardPage(
       column(2, 
              conditionalPanel(
                condition = "input.proteome == 'Global'",
-               selectInput(inputId = "aggregate_to",
+               selectInput(inputId = "gl_aggregate_to",
                            label = "Roll up to:",
                            choices = list("Accession" = 1, 
                                           "Peptide" = 2),
                            selected = 1)),
              conditionalPanel(
                condition = "input.proteome == 'Phospho'",
-               selectInput(inputId = "aggregate_to",
+               selectInput(inputId = "ph_aggregate_to",
                            label = "Roll up to:",
                            choices = list("Peptide" = 1, 
                                           "SiteID" = 2),
