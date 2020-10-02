@@ -13,6 +13,8 @@ ui <- dashboardPage(
     fluidRow(
       column(2,
              downloadButton("downloadData", "Download"), style = "padding-left:30px;")),
+    radioButtons("proteome", label = "Proteome:", choices = c("Global", "Phospho"), 
+                 selected = "Global"),
     tags$style(".skin-blue .sidebar a { color: #444; }")
   ),
   # Main panel for displaying outputs ----
@@ -45,6 +47,8 @@ ui <- dashboardPage(
       column(2, 
              # selectInput("org_name", "Organism:", choices = list("Rattus norvegicus" = 1,
              #                                                     "Homo sapiens" = 2)),
+             conditionalPanel(
+               condition = "input.proteome == 'Global'",
              textInput(inputId = "pep_fdr",
                        label = "Peptide-level FDR:",
                        value = 0.01),
@@ -55,7 +59,20 @@ ui <- dashboardPage(
                            "Remap to Genes"),
              checkboxInput("protein_inference",
                            "Parsimonious Inference"), 
-             checkboxInput("unique_only", "Drop Shared Peptides"),
+             checkboxInput("unique_only", "Drop Shared Peptides")),
+             conditionalPanel(
+               condition = "input.proteome == 'Phospho'",
+               textInput(inputId = "pep_fdr",
+                         label = "Peptide-level FDR:",
+                         value = 0.01),
+               checkboxInput("add_ascore",
+                             "Add A-score"),
+               checkboxInput("remap_genes",
+                             "Remap to Genes"),
+               checkboxInput("protein_inference",
+                             "Parsimonious Inference"), 
+               checkboxInput("unique_only", "Drop Shared Peptides")),
+             
              style = 'padding-left:0px; padding-right:50px; padding-top:0px; padding-bottom:0px'
       ),
       column(2, actionButton("submit2", "MS-GF+"))
@@ -66,11 +83,22 @@ ui <- dashboardPage(
     br(),
     fluidRow(
       column(5, uiOutput("ibox3")),
-      column(2, selectInput(inputId = "aggregate_to",
-                            label = "Roll up to:",
-                            choices = list("Accession" = 1, 
-                                           "Peptide" = 2),
-                            selected = 1), style = 'padding-left:0px; padding-right:50px; padding-top:0px; padding-bottom:0px'),
+      column(2, 
+             conditionalPanel(
+               condition = "input.proteome == 'Global'",
+               selectInput(inputId = "aggregate_to",
+                           label = "Roll up to:",
+                           choices = list("Accession" = 1, 
+                                          "Peptide" = 2),
+                           selected = 1)),
+             conditionalPanel(
+               condition = "input.proteome == 'Phospho'",
+               selectInput(inputId = "aggregate_to",
+                           label = "Roll up to:",
+                           choices = list("Peptide" = 1, 
+                                          "SiteID" = 2),
+                           selected = 1)),
+             style = 'padding-left:0px; padding-right:50px; padding-top:0px; padding-bottom:0px'),
       column(2, actionButton("submit3", "Quant"))
     ),
     fluidRow(
